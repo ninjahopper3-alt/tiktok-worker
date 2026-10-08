@@ -1,0 +1,27 @@
+name: TikTok Monitor
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install worker deps
+        run: pip install -r worker/requirements.txt
+      - name: Run TikTok monitor
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          WORKER_KEY: ${{ secrets.WORKER_KEY }}
+          LIMIT: '12'
+        run: python worker/monitor.py
