@@ -39,25 +39,77 @@ TIKTOK_COOKIES = os.environ.get("TIKTOK_COOKIES", "")
 
 SEP = "\\x1f"  # NOTE: yt-dlp prints these 4 chars literally — split on them
 
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36")
+
+_jar = {}  # host -> {"__test": value}
+
+
+def _solve_testcookie(html):
+    """InfinityFree-style JS challenge solver (AES-128-CBC, stdlib+pycryptodome).
+    Returns the __test cookie value, or "" when unsolvable."""
+    import re
+    m = re.search(
+        r'var a=toNumbers\("([0-9a-f]+)"\),b=toNumbers\("([0-9a-f]+)"\),c=toNumbers\("([0-9a-f]+)"',
+        html,
+    )
+    if not m:
+        return ""
+    try:
+        from Crypto.Cipher import AES
+
+        def tn(h):
+            return bytes(int(h[i:i + 2], 16) for i in range(0, len(h), 2))
+
+        pt = AES.new(tn(m.group(1)), AES.MODE_CBC, tn(m.group(2))).decrypt(tn(m.group(3)))
+        return pt.hex()
+    except Exception as e:
+        print(f"[worker] challenge solve failed: {e}", flush=True)
+        return ""
+
+
+def _request(method, url, payload=None):
+    """One HTTP round-trip with cookie jar. Returns (status, body)."""
+    import urllib.parse
+    data = json.dumps(payload).encode() if payload is not None else None
+    headers = {
+        "Authorization": "Bearer " + WORKER_KEY,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": UA,
+    }
+    host = urllib.parse.urlsplit(url).hostname or ""
+    if host in _jar:
+        headers["Cookie"] = "; ".join(f"{k}={v}" for k, v in _jar[host].items())
+    req = urllib.request.Request(url, data=data, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return r.status, r.read().decode("utf-8", "replace")
+    except Exception as e:
+        code = getattr(e, "code", 0) or 0
+        try:
+            body = e.read().decode("utf-8", "replace") if hasattr(e, "read") else ""
+        except Exception:
+            body = ""
+        return code, body
+
 
 def api(method, path, payload=None):
     url = SITE_URL + path
-    data = json.dumps(payload).encode() if payload is not None else None
-    req = urllib.request.Request(
-        url,
-        data=data,
-        method=method,
-        headers={
-            "Authorization": "Bearer " + WORKER_KEY,
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "User-Agent": "QuranAutoPost-Worker/1.0",
-        },
-    )
+    code, body = _request(method, url, payload)
+    # Bot-challenge page instead of JSON? Solve it once, then retry.
+    if "/aes.js" in body and "toNumbers" in body:
+        print("[worker] host challenge detected, solving…", flush=True)
+        val = _solve_testcookie(body)
+        if val:
+            import urllib.parse
+            host = urllib.parse.urlsplit(url).hostname or ""
+            _jar.setdefault(host, {})["__test"] = val
+            sep = "&i=1" if "?" in url else "?i=1"
+            code, body = _request(method, url + sep, payload)
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return r.status, json.loads(r.read().decode("utf-8", "replace") or "{}")
-    except Exception as e:  # network errors, HTTP errors, bad JSON
+        return code, json.loads(body or "{}")
+    except Exception as e:
         print(f"[worker] API {method} {path} failed: {e}", flush=True)
         return 0, {}
 
