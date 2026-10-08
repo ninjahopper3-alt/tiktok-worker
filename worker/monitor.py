@@ -97,7 +97,11 @@ def _request(method, url, payload=None):
 
 
 def api(method, path, payload=None):
-    url = SITE_URL + path
+    # Key goes in BOTH the header and the query string: some shared hosts
+    # swallow the Authorization header before PHP sees it (?key= always lands).
+    import urllib.parse
+    joiner = "&" if "?" in path else "?"
+    url = SITE_URL + path + joiner + "key=" + urllib.parse.quote(WORKER_KEY, safe="")
     code, body = _request(method, url, payload)
     # Bot-challenge page instead of JSON? Solve it once, then retry.
     if "/aes.js" in body and "toNumbers" in body:
