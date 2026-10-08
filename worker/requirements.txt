@@ -1,0 +1,3 @@
+yt-dlp
+requests
+tt-dlp @ git+https://github.com/bajaam/tt-dlp.git
