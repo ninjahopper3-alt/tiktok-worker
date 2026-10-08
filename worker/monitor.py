@@ -29,7 +29,9 @@ import sys
 import urllib.request
 
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
-WORKER_KEY = os.environ.get("WORKER_KEY", "")
+# Stripped: copy-paste from browsers often smuggles in spaces/newlines,
+# which used to cause mysterious 401s. Hex keys never contain whitespace.
+WORKER_KEY = "".join(os.environ.get("WORKER_KEY", "").split())
 LIMIT = max(1, min(30, int(os.environ.get("LIMIT", "12"))))
 TIMEOUT = max(30, int(os.environ.get("TIMEOUT", "120")))
 TT_DLP_BIN = os.environ.get("TT_DLP_BIN", "tt-dlp")
@@ -246,6 +248,11 @@ def main():
         return 0
     code, data = api("GET", "/api/monitors")
     monitors = data.get("monitors", []) if isinstance(data, dict) else []
+    if code == 401:
+        fp = (WORKER_KEY[:4] + "…" + WORKER_KEY[-4:]) if len(WORKER_KEY) >= 8 else "(empty)"
+        print(f"[worker] site says: wrong key (sent fingerprint {fp}, length {len(WORKER_KEY)}). "
+              "Re-copy the key from the site's TikTok Monitor page into the WORKER_KEY secret.", flush=True)
+        return 0
     if code != 200 or not monitors:
         print(f"[worker] no monitors (http={code}); nothing to do", flush=True)
         return 0
