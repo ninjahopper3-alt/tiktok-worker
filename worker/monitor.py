@@ -129,18 +129,21 @@ def profile_url(kind, target):
 
 def list_videos(kind, target, limit):
     """tt-dlp first (proven against bot-checks), yt-dlp fallback.
-    Returns (items, error). Never raises."""
+    Returns (items, error). Both errors are reported so the log shows
+    the full picture. Never raises."""
+    errs = []
     if kind == "user":
         items, err = list_via_ttdlp(target, limit)
         if items:
             return items, ""
-        first_err = err
-    else:
-        first_err = ""
+        if err:
+            errs.append("tt-dlp: " + err)
     items, err = list_via_ytdlp(kind, target, limit)
     if items:
         return items, ""
-    return [], first_err or err
+    if err:
+        errs.append("yt-dlp: " + err)
+    return [], " | ".join(errs) if errs else "no videos listed"
 
 
 def list_via_ttdlp(target, limit):
