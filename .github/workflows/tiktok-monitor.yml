@@ -1,9 +1,22 @@
 name: TikTok Monitor
 
+# External discovery worker for Quran AutoPost.
+# Runs on GitHub's free runners (no server needed) and pushes new videos
+# to your website. Website needs zero cron for this.
+#
+# Setup (once):
+#   1. On your website: TikTok Monitor page -> copy the worker API key.
+#   2. On GitHub: this repo (or any repo holding worker/) -> Settings ->
+#      Secrets and variables -> Actions -> New repository secret:
+#        SITE_URL    e.g. https://quranpost.site.je   (no trailing slash)
+#        WORKER_KEY  paste the key from step 1
+#   3. Actions tab -> enable workflows. Done — it runs every 30 minutes.
+#      "Run workflow" button runs it immediately.
+
 on:
   schedule:
-    - cron: '*/30 * * * *'
-  workflow_dispatch: {}
+    - cron: '*/30 * * * *' # every 30 minutes (GitHub may delay a few minutes)
+  workflow_dispatch: {} # manual "Run workflow" button
 
 permissions:
   contents: read
