@@ -65,3 +65,11 @@ SITE_URL=https://your-domain WORKER_KEY=xxx LIMIT=12 python worker/monitor.py
   per-monitor errors show on the website's Monitors page.
 - The worker never sees your admin password and can't download or delete
   anything — the key only allows monitor-list reads and discovery pushes.
+
+## Free-hosting firewalls
+
+Some free hosts (e.g. InfinityFree) put a JavaScript bot-check in front of
+every request, which would block API calls. The worker detects that
+challenge page, solves it (AES, pure Python) and retries automatically —
+no action needed. If you see `host challenge detected, solving…` in the
+Actions log followed by normal output, that mechanism is doing its job.
